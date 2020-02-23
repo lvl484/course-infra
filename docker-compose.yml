@@ -1,0 +1,105 @@
+version: "3"
+
+services:
+  cassandra:
+    hostname: "cassandra"
+    image: "cassandra:latest"
+    volumes:
+      - "./cassandra-init.sh:/cassandra-init.sh"
+    command: "sh /cassandra-init.sh"
+    networks:
+      - "internal"
+    ports:
+      - "9042:9042"
+    healthcheck:
+      test: ["CMD-SHELL", "[  $$(nodetool statusgossip) = running ]"]
+
+  zookeeper:
+    hostname: "zookeeper"
+    image: "wurstmeister/zookeeper"
+    networks:
+      - "internal"
+    ports:
+      - "2181:2181"
+
+  kafka:
+    hostname: "kafka"
+    image: "wurstmeister/kafka"
+    ports:
+      - "9092:9092"
+    networks:
+      - "internal"
+    environment:
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181/local
+      - KAFKA_ADVERTISED_HOST_NAME=kafka
+      - KAFKA_ADVERTIZED_PORT=9092
+    depends_on:
+      - "zookeeper"
+
+  zipkin:
+    hostname: "zipkin"
+    image: "openzipkin/zipkin:2.19"
+    networks:
+      - "internal"
+    ports:
+      - "9411:9411"
+
+  prometheus:
+    hostname: "prometheus"
+    image: "prom/prometheus"
+    networks:
+      - "internal"
+    ports:
+      - "9090:9090"
+    volumes:
+      - "./prometheus.yml:/etc/prometheus/prometheus.yml"
+    environment:
+      - GET_HOSTS_FROM=dns
+
+  grafana:
+    hostname: "grafana"
+    image: "grafana/grafana:latest"
+    networks:
+      - "internal"
+    ports:
+      - "3000:3000"
+
+  consul:
+    hostname: "consul"
+    image: "consul:latest"
+    networks:
+      - "internal"
+    ports:
+      - "8400:8400"
+      - "8500:8500"
+      - "8600:8600"
+
+  example:
+    hostname: "example"
+    image: "github.com/lvl484/example:develop"
+    networks:
+      - "internal"
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+    env_file:
+      - "./example-app/.env"
+    build:
+      dockerfile: Dockerfile
+      context: ./example-app
+    environment:
+      - SERVICE_NAME=example
+      - BIND_IP=0.0.0.0
+      - BIND_PORT=8000
+      - BIND_DEBUG_PORT=8001
+      - ZIPKIN_ADDRESS=zipkin:9411
+      - ZIPKIN_REPORTING_API=/api/v2/spans
+      - ZIPKIN_FRACTION=1
+      - CONSUL_ADDRESS=consul:8500
+
+networks:
+  internal:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.0.0.0/24
