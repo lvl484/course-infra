@@ -1,3 +1,5 @@
+# course-infra
+
 ## Start all services:
 ```bash
 docker-compose up -d --build
